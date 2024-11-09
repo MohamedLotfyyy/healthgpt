@@ -320,6 +320,7 @@ const User = () => {
             {showDoctorForm && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContainer}>
+                        <button onClick={() => setShowDoctorForm(false)} style={styles.closeButton}>×</button>
                         <h3 style={styles.modalHeader}>Send to Doctor</h3>
                         <div style={styles.modalContent}>
                             <p><strong>Symptoms:</strong> {conversations[0]?.userSymptoms}</p>
@@ -470,6 +471,16 @@ const styles = {
         maxHeight: '80vh',
         overflowY: 'auto',
         boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+        position: 'relative',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        backgroundColor: 'transparent',
+        border: 'none',
+        fontSize: '20px',
+        cursor: 'pointer',
     },
     modalHeader: {
         fontSize: '20px',
