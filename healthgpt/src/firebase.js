@@ -1,25 +1,24 @@
 // src/firebase.js
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getAnalytics } from 'firebase/analytics';
 
-// Import the functions you need from the SDKs
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-
-// Your web app's Firebase configuration
+// Your Firebase configuration
 const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-auth-domain",
-  projectId: "your-project-id",
-  storageBucket: "your-storage-bucket",
-  messagingSenderId: "your-messaging-sender-id",
-  appId: "your-app-id",
-  measurementId: "your-measurement-id"
+  apiKey: "AIzaSyD9DReeFB9oTmPdT6JRVxyny9OEw9Pyboc",
+  authDomain: "healthgpt-3a5a9.firebaseapp.com",
+  projectId: "healthgpt-3a5a9",
+  storageBucket: "healthgpt-3a5a9.appspot.com",
+  messagingSenderId: "927840824384",
+  appId: "1:927840824384:web:49efc16ca1dda98f9183a5",
+  measurementId: "G-YKPT5WNXFW"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);  // Firestore instance
-const auth = getAuth(app);      // Authentication instance
+const auth = getAuth(app);
+const db = getFirestore(app);
+const analytics = getAnalytics(app);
 
-// Export the instances to use them in other files
-export { app, db, auth };
+export { app, auth, db, analytics };
