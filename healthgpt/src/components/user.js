@@ -158,152 +158,346 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const symptoms = [
-    'itching', 'skin_rash', 'joint_pain', 'stomach_pain', 'fatigue', 'headache', 
-    'cough', 'fever', 'nausea', 'vomiting', 'diarrhea'
+const symptomsList = [
+    'itching', 'skin_rash', 'nodal_skin_eruptions', 'continuous_sneezing', 'shivering',
+    'chills', 'joint_pain', 'stomach_pain', 'acidity', 'ulcers_on_tongue', 'muscle_wasting',
+    'vomiting', 'burning_micturition', 'spotting_urination', 'fatigue', 'weight_gain', 
+    // add more symptoms here
 ];
 
 const User = () => {
+    const [selectedSymptoms, setSelectedSymptoms] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredSymptoms, setFilteredSymptoms] = useState([]);
-    const [selectedSymptoms, setSelectedSymptoms] = useState([]);
-    const [conversation, setConversation] = useState([]); // Stores conversation sequentially
-    const [advice, setAdvice] = useState(''); // For displaying current advice
-    const [showSendToDoctor, setShowSendToDoctor] = useState(false); // Show medical history pop-up
-    const [medicalHistory, setMedicalHistory] = useState(''); // Medical history input
+    const [conversations, setConversations] = useState([]);
+    const [conversationCount, setConversationCount] = useState(1);
+    const [showDoctorOption, setShowDoctorOption] = useState(false);
+    const [showDoctorForm, setShowDoctorForm] = useState(false);
+    const [medicalHistory, setMedicalHistory] = useState('');
+    const [file, setFile] = useState(null);
 
-    // Update search term and filter symptoms
     const handleSearchChange = (event) => {
         const term = event.target.value;
         setSearchTerm(term);
+
         if (term) {
-            setFilteredSymptoms(symptoms.filter(symptom =>
-                symptom.toLowerCase().includes(term.toLowerCase())
+            setFilteredSymptoms(symptomsList.filter(symptom =>
+                symptom.toLowerCase().includes(term.toLowerCase()) &&
+                !selectedSymptoms.includes(symptom)
             ));
         } else {
             setFilteredSymptoms([]);
         }
     };
 
-    // Add symptom to the selected list
     const addSymptom = (symptom) => {
         if (!selectedSymptoms.includes(symptom)) {
             setSelectedSymptoms([...selectedSymptoms, symptom]);
+            if (selectedSymptoms.length + 1 >= 3) {
+                setShowDoctorOption(true);
+            }
         }
-        setSearchTerm(''); // Clear search term after adding
-        setFilteredSymptoms([]); // Clear filtered symptoms
+        setSearchTerm('');
+        setFilteredSymptoms([]);
     };
 
-    // Handle conversation submission
+    const removeSymptom = (symptom) => {
+        const updatedSymptoms = selectedSymptoms.filter(s => s !== symptom);
+        setSelectedSymptoms(updatedSymptoms);
+        if (updatedSymptoms.length < 3) {
+            setShowDoctorOption(false);
+        }
+    };
+
     const handleGetPrediction = async () => {
         try {
             const response = await axios.post('http://localhost:3000/get_advice', {
                 symptoms: selectedSymptoms,
             });
-            const adviceText = response.data.advice || "No advice available";
+            const advice = response.data.advice;
 
-            // Add the advice to the conversation
-            setConversation([...conversation, { role: 'ChatGPT', content: adviceText }]);
-            setAdvice(adviceText);
-        } catch (error) {
-            console.error("Error getting advice:", error);
-        }
-    };
-
-    // Show send to doctor modal
-    const handleSendToDoctor = () => {
-        if (selectedSymptoms.length >= 5) {
-            setShowSendToDoctor(true);
-        } else {
-            alert("Please add at least 5 symptoms to send to a doctor.");
-        }
-    };
-
-    // Handle sending the data to the doctor
-    const handleDoctorSubmission = async () => {
-        try {
-            const response = await axios.post('http://localhost:3000/send_to_doctor', {
-                symptoms: selectedSymptoms,
-                medicalHistory: medicalHistory,
-            });
-
-            setConversation([
-                ...conversation,
-                { role: 'User', content: "Sent data to doctor." },
-                { role: 'System', content: response.data.message }
+            setConversations([
+                {
+                    id: conversationCount,
+                    userSymptoms: selectedSymptoms.join(', '),
+                    gptResponse: advice,
+                },
+                ...conversations,
             ]);
-            setShowSendToDoctor(false); // Close modal
+            setConversationCount(conversationCount + 1);
+
+        } catch (error) {
+            console.error("Error getting prediction:", error);
+        }
+    };
+
+    const handleSendToDoctor = () => {
+        setShowDoctorForm(true);
+    };
+
+    const handleSubmitToDoctor = async () => {
+        const formData = new FormData();
+        formData.append('symptoms', JSON.stringify(selectedSymptoms));
+        formData.append('medicalHistory', medicalHistory);
+        if (file) {
+            formData.append('file', file);
+        }
+
+        try {
+            await axios.post('http://localhost:3000/send_to_doctor', formData);
+            alert('Data sent to the health professional successfully.');
+            setShowDoctorForm(false);
+            setMedicalHistory('');
+            setFile(null);
         } catch (error) {
             console.error("Error sending to doctor:", error);
         }
     };
 
     return (
-        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px' }}>
-            <h2>Symptom Checker</h2>
+        <div style={styles.container}>
+            <h2 style={styles.title}>Symptom Checker</h2>
 
-            {/* Search Bar for Symptoms */}
-            <input
-                type="text"
-                placeholder="Search symptoms..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                style={{ marginBottom: '10px', padding: '5px', width: '100%' }}
-            />
+            {/* Search and Submit Section */}
+            <div style={styles.searchContainer}>
+                <input
+                    type="text"
+                    placeholder="Search symptoms..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    style={styles.searchInput}
+                />
+                <button onClick={handleGetPrediction} style={styles.submitButton}>Submit</button>
+            </div>
 
-            {/* Filtered Symptoms List */}
+            {/* Display Filtered Symptoms for Selection */}
             {filteredSymptoms.length > 0 && (
-                <div style={{ border: '1px solid #ccc', padding: '10px', marginBottom: '10px' }}>
-                    {filteredSymptoms.map(symptom => (
-                        <div key={symptom} onClick={() => addSymptom(symptom)} style={{ cursor: 'pointer', padding: '5px 0' }}>
+                <div style={styles.filteredSymptomsContainer}>
+                    {filteredSymptoms.map((symptom, index) => (
+                        <div
+                            key={index}
+                            onClick={() => addSymptom(symptom)}
+                            style={styles.filteredSymptom}
+                        >
                             {symptom.replace(/_/g, ' ')}
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Display Selected Symptoms */}
-            <div style={{ marginBottom: '10px' }}>
-                <strong>Selected Symptoms:</strong>
+            {/* Selected Symptoms Display */}
+            <div style={styles.chipContainer}>
                 {selectedSymptoms.map((symptom, index) => (
-                    <span key={index} style={{ display: 'inline-block', margin: '5px', padding: '5px', backgroundColor: '#f1f1f1', borderRadius: '5px' }}>
-                        {symptom.replace(/_/g, ' ')}
-                    </span>
-                ))}
-            </div>
-
-            <button onClick={handleGetPrediction} style={{ marginBottom: '10px' }}>Get General Health Advice</button>
-            <button onClick={handleSendToDoctor} style={{ marginBottom: '10px', marginLeft: '10px' }}>Send to Doctor</button>
-
-            {/* Conversation Display */}
-            <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '5px', marginTop: '10px' }}>
-                <strong>Conversation:</strong>
-                {conversation.map((entry, index) => (
-                    <div key={index} style={{ margin: '10px 0' }}>
-                        <strong>{entry.role}:</strong> {entry.content}
+                    <div key={index} style={styles.chip}>
+                        <span style={styles.chipText}>{symptom.replace(/_/g, ' ')}</span>
+                        <button onClick={() => removeSymptom(symptom)} style={styles.chipCloseButton}>×</button>
                     </div>
                 ))}
             </div>
 
-            {/* Send to Doctor Modal */}
-            {showSendToDoctor && (
-                <div style={{
-                    position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    padding: '20px', backgroundColor: 'white', border: '1px solid #ddd', borderRadius: '5px'
-                }}>
-                    <h3>Send to Health Professional</h3>
-                    <textarea
-                        placeholder="Add any relevant medical history"
-                        value={medicalHistory}
-                        onChange={(e) => setMedicalHistory(e.target.value)}
-                        style={{ width: '100%', height: '80px', marginBottom: '10px' }}
-                    />
-                    <button onClick={handleDoctorSubmission} style={{ marginRight: '10px' }}>Submit</button>
-                    <button onClick={() => setShowSendToDoctor(false)}>Cancel</button>
+            {/* Display Conversations in Reverse Order */}
+            <div>
+                <h3 style={styles.conversationTitle}>Conversation:</h3>
+                {conversations.map((conv) => (
+                    <div key={conv.id} style={styles.conversationContainer}>
+                        <p style={styles.conversationEntry}>
+                            <strong>Conversation {conv.id} - User:</strong> Symptoms: {conv.userSymptoms}
+                        </p>
+                        <p style={styles.conversationEntry}>
+                            <strong>Conversation {conv.id} - ChatGPT:</strong> {conv.gptResponse}
+                        </p>
+                        {showDoctorOption && conv.id === conversationCount - 1 && (
+                            <p style={styles.conversationEntry}>
+                                Would you like us to send our conversation and your symptoms to a doctor?&nbsp;
+                                <button onClick={handleSendToDoctor} style={styles.sendButton}>Yes</button>
+                            </p>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Doctor Form Modal */}
+            {showDoctorForm && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalContainer}>
+                        <h3 style={styles.modalHeader}>Send to Doctor</h3>
+                        <div style={styles.modalContent}>
+                            <p><strong>Symptoms:</strong> {conversations[0]?.userSymptoms}</p>
+                            <p><strong>Advice:</strong> {conversations[0]?.gptResponse}</p>
+                        </div>
+                        <textarea
+                            value={medicalHistory}
+                            onChange={(e) => setMedicalHistory(e.target.value)}
+                            placeholder="Enter any relevant medical history..."
+                            style={styles.textArea}
+                        />
+                        <input
+                            type="file"
+                            onChange={(e) => setFile(e.target.files[0])}
+                            style={styles.fileInput}
+                        />
+                        <button onClick={handleSubmitToDoctor} style={styles.submitButton}>Submit to Doctor</button>
+                    </div>
                 </div>
             )}
         </div>
     );
+};
+
+const styles = {
+    container: {
+        maxWidth: '600px',
+        margin: '0 auto',
+        padding: '20px',
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#f9f9fb',
+        borderRadius: '10px',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+    },
+    title: {
+        textAlign: 'center',
+        color: '#333',
+    },
+    searchContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        marginBottom: '20px',
+    },
+    searchInput: {
+        flex: 1,
+        padding: '10px',
+        borderRadius: '20px',
+        border: '1px solid #ddd',
+        outline: 'none',
+        fontSize: '16px',
+    },
+    submitButton: {
+        marginLeft: '10px',
+        padding: '10px 20px',
+        borderRadius: '20px',
+        border: 'none',
+        backgroundColor: '#4a90e2',
+        color: '#fff',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        transition: 'background-color 0.3s',
+    },
+    filteredSymptomsContainer: {
+        border: '1px solid #ddd',
+        borderRadius: '10px',
+        padding: '10px',
+        marginBottom: '20px',
+        backgroundColor: '#fff',
+    },
+    filteredSymptom: {
+        padding: '5px 0',
+        cursor: 'pointer',
+        fontSize: '16px',
+        color: '#333',
+        borderBottom: '1px solid #ddd',
+    },
+    chipContainer: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        marginBottom: '20px',
+    },
+    chip: {
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: '#e0e7ff',
+        borderRadius: '16px',
+        padding: '5px 10px',
+        border: '1px solid #c4c9f0',
+    },
+    chipText: {
+        marginRight: '5px',
+        color: '#4a4a9a',
+    },
+    chipCloseButton: {
+        backgroundColor: 'transparent',
+        border: 'none',
+        color: '#4a4a9a',
+        fontSize: '16px',
+        cursor: 'pointer',
+    },
+    conversationContainer: {
+        padding: '10px',
+        backgroundColor: '#fff',
+        borderRadius: '10px',
+        border: '1px solid #ddd',
+        color: '#333',  
+        marginTop: '10px',
+    },
+    conversationTitle: {
+        color: '#4a90e2',
+        fontSize: '18px',
+        marginBottom: '10px',
+    },
+    conversationEntry: {
+        marginBottom: '10px',
+        fontSize: '16px',
+        lineHeight: '1.5',
+        color: '#333',
+    },
+    sendButton: {
+        padding: '8px 16px',
+        borderRadius: '10px',
+        border: 'none',
+        backgroundColor: '#4caf50',
+        color: '#fff',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        transition: 'background-color 0.3s',
+    },
+    modalOverlay: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalContainer: {
+        backgroundColor: '#fff',
+        padding: '20px',
+        borderRadius: '10px',
+        width: '80%',
+        maxWidth: '500px',
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+    },
+    modalHeader: {
+        fontSize: '20px',
+        fontWeight: 'bold',
+        marginBottom: '10px',
+        color: '#333',
+    },
+    modalContent: {
+        marginBottom: '10px',
+        color: '#333',
+        overflowY: 'auto',
+        maxHeight: '150px',
+        padding: '10px',
+        backgroundColor: '#f5f5f5',
+        borderRadius: '8px',
+    },
+    textArea: {
+        width: '100%',
+        height: '100px',
+        padding: '10px',
+        marginBottom: '10px',
+        borderRadius: '5px',
+        border: '1px solid #ddd',
+        fontSize: '14px',
+    },
+    fileInput: {
+        marginBottom: '10px',
+    },
 };
 
 export default User;
