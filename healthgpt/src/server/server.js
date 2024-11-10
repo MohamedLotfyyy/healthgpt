@@ -41,6 +41,51 @@ app.post('/get_advice', async (req, res) => {
     }
 });
 
+
+// Endpoint to get detailed health advice, diagnosis, and medication from ChatGPT
+app.post('/get_advice_doctor', async (req, res) => {
+    const { symptoms } = req.body;
+    const symptomText = symptoms.join(', ');
+
+    try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4',
+            messages: [
+                { role: 'user', content: `A patient has symptoms like ${symptomText}. Please provide the following:
+                  1. Diagnosis: What could be the possible condition based on these symptoms?
+                  2. Medication: What medication might help alleviate the symptoms or treat the condition?
+                  3. General Health Advice: What general health precautions, diet, or lifestyle advice would you recommend for this condition?` }
+            ],
+            max_tokens: 300
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // Parsing the response from OpenAI
+        const adviceText = response.data.choices[0].message.content;
+        console.log("Full advice text:", adviceText);
+
+        // Using regular expressions to extract each part of the advice
+        const diagnosisMatch = adviceText.match(/Diagnosis:\s*([\s\S]*?)(?:\nMedication:|\n|$)/);
+        const medicationMatch = adviceText.match(/Medication:\s*([\s\S]*?)(?:\nGeneral Health Advice:|\n|$)/);
+        const adviceMatch = adviceText.match(/General Health Advice:\s*([\s\S]*)/);
+
+        const diagnosis = diagnosisMatch ? diagnosisMatch[1].trim() : 'Diagnosis not provided.';
+        const medication = medicationMatch ? medicationMatch[1].trim() : 'Medication advice not provided.';
+        const advice = adviceMatch ? adviceMatch[1].trim() : 'General health advice not provided.';
+
+        // Sending the structured response back to the frontend
+        res.json({ diagnosis, medication, advice });
+    } catch (error) {
+        console.error("Error querying OpenAI API:", error);
+        res.status(500).json({ error: "Failed to get full advice" });
+    }
+});
+
+
 // Endpoint to send data to a health professional
 // app.post('/send_to_doctor', async (req, res) => {
 //     const { symptoms, medicalHistory, lastConversation } = req.body;

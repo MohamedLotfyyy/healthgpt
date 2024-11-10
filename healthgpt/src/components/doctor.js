@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { fetchOpenConsultations, respondToConsultation } from '../services/consultationServices';
 import { auth } from '../firebase';
 
+import axios from 'axios';
+
+
 // Import MUI components
 import {
   Box,
@@ -25,6 +28,10 @@ import {
   Menu as MenuIcon,
   Close as CloseIcon,
   Send as SendIcon,
+
+  // ADDED: New icon for the Generate AI Advice button
+  AutoAwesome as AutoAwesomeIcon,
+
 } from '@mui/icons-material';
 
 const DoctorDashboard = () => {
@@ -36,6 +43,10 @@ const DoctorDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertSeverity, setAlertSeverity] = useState('success');
+
+  const [aiLoading, setAiLoading] = useState(false);
+  const [modalAlertMessage, setModalAlertMessage] = useState('');
+  const [aiAlertSeverity, setAiAlertSeverity] = useState('success');
 
   useEffect(() => {
     const loadConsultations = async () => {
@@ -53,6 +64,69 @@ const DoctorDashboard = () => {
     };
     loadConsultations();
   }, []);
+
+
+  // generate AI advice to fill the reply to patient
+  const handleGenerateAdvice = async () => {
+    if (!selectedConsultation) return;
+
+    try {
+      setAiLoading(true);
+      const response = await axios.post('http://localhost:3000/get_advice', {
+        symptoms: selectedConsultation.symptoms,
+      });
+      const advice = response.data.advice;
+
+      // advice generated
+      setResponse(advice); // fill the Response to Patient block
+      // setAlertMessage('AI-generated advice added successfully.');
+      // setAlertSeverity('success');
+
+      setModalAlertMessage('AI-generated advice added successfully.');
+      setAiAlertSeverity('success');
+    } catch (error) {
+      console.error('Error generating AI advice:', error);
+      // setAlertMessage('Failed to generate AI advice.');
+      // setAlertSeverity('error');
+
+      setModalAlertMessage('AI-generated advice added successfully.');
+      setAiAlertSeverity('error');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // const handleGenerateAdvice = async () => {
+  //   if (!selectedConsultation) return;
+
+  //   try {
+  //     setAiLoading(true);
+  //     const response = await axios.post('http://localhost:3000/get_advice_doctor', {
+  //       symptoms: selectedConsultation.symptoms,
+  //     });
+
+  //     console.log('Full API Response:', response); 
+
+  //     // 解析 API 返回的数据，将各部分填充到对应的框中
+  //     const { diagnosis, medication, advice } = response.data;
+
+  //     setResponse(advice); // 填充 "Response to Patient"
+  //     setDisease(diagnosis); // 填充 "Diagnosis (Disease)"
+  //     setMedication(medication); // 填充 "Medication"
+
+  //     // 设置成功消息
+  //     setModalAlertMessage('AI-generated advice added successfully.');
+  //     setAiAlertSeverity('success');
+  //   } catch (error) {
+  //     console.error('Error generating AI advice:', error);
+  //     setModalAlertMessage('Failed to generate AI advice.');
+  //     setAiAlertSeverity('error');
+  //   } finally {
+  //     setAiLoading(false);
+  //   }
+  // };
+
+
 
   const handleResponseSubmit = async (consultationId) => {
     try {
@@ -137,7 +211,9 @@ const DoctorDashboard = () => {
             maxWidth="sm"
           >
             <DialogTitle>
-              Respond to Consultation
+              <Typography variant="h6" fontWeight="bold">
+                Respond to Consultation
+              </Typography>
               <IconButton
                 aria-label="close"
                 onClick={() => setSelectedConsultation(null)}
@@ -147,6 +223,17 @@ const DoctorDashboard = () => {
               </IconButton>
             </DialogTitle>
             <DialogContent dividers>
+              {/* AlertMessage in Response Block */}
+              {modalAlertMessage && (
+                <Alert
+                  severity={aiAlertSeverity}
+                  onClose={() => setModalAlertMessage('')}
+                  sx={{ mb: 2 }}
+                >
+                  {modalAlertMessage}
+                </Alert>
+              )}
+
               <Typography variant="subtitle1" gutterBottom>
                 <strong>Symptoms:</strong> {selectedConsultation.symptoms.join(', ')}
               </Typography>
@@ -181,6 +268,19 @@ const DoctorDashboard = () => {
               />
             </DialogContent>
             <DialogActions>
+            {/* <Button onClick={handleGenerateAdvice} color="primary">Generate AI Advice</Button> */}
+            <Button
+                onClick={handleGenerateAdvice}
+                startIcon={<AutoAwesomeIcon />} // NEW: Icon for AI advice button
+                sx={{
+                  color: 'blue',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                }}
+                disabled={aiLoading}
+              >
+                {aiLoading ? <CircularProgress size={24} color="inherit" /> : 'Generate AI Advice'}
+            </Button>
               <Button onClick={() => setSelectedConsultation(null)}>Cancel</Button>
               <Button
                 variant="contained"
