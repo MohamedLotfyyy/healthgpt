@@ -1,12 +1,18 @@
 // src/components/Register.js
 import React, { useState } from 'react';
 import { register } from '../services/authServices.js';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const Register = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleTogglePassword = () => {
+    setShowPassword((prevShowPassword) => !prevShowPassword);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,14 +56,29 @@ const Register = () => {
           style={styles.input}
         />
         
-        <input
+        
+        {/* <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           style={styles.input}
-        />
+        /> */}
+
+        <div style={styles.passwordContainer}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={styles.passwordInput}
+          />
+          <span onClick={handleTogglePassword} style={styles.eyeIcon}>
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </span>
+        </div>
         
         <button type="submit" style={styles.button}>Register</button>
         
@@ -98,6 +119,29 @@ const styles = {
     borderRadius: '4px',
     border: '1px solid #ddd',
     fontSize: '16px',
+    boxSizing: 'border-box',
+  },
+  passwordContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    width: '100%',
+    padding: '10px',
+    paddingRight: '40px', // 预留给图标的空间
+    borderRadius: '4px',
+    border: '1px solid #ddd',
+    fontSize: '16px',
+    boxSizing: 'border-box', // 确保宽度一致
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: '15px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    cursor: 'pointer',
+    fontSize: '18px',
+    color: '#333',
   },
   button: {
     width: '100%',
