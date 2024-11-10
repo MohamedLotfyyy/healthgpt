@@ -22,7 +22,7 @@ const Register = () => {
       console.log('Registered:', user);
       
       if (role === 'doctor') {
-        window.location.href = '/doctor-dashboard';
+        window.location.href = '/doctor';
       } else {
         window.location.href = '/user';
       }

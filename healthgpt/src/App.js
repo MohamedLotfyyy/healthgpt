@@ -19,6 +19,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Register from './components/register.js';
 import Login from './components/login.js';
 import User from './components/user';
+import DoctorDashboard from './components/doctor.js';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <Routes>
         <Route path="/register" element={<Register />} />
         <Route path="/user" element={<User />} />
+        <Route path="/doctor" element={<DoctorDashboard />} />
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Register />} /> {/* Redirect to login by default */}
       </Routes>

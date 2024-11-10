@@ -27,7 +27,7 @@ const Login = () => {
       const userData = userDoc.data();
       
       if (userData.username.startsWith('Dr')) {
-        window.location.href = '/doctor-dashboard';
+        window.location.href = '/doctor';
       } else {
         window.location.href = '/user';
       }

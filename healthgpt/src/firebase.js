@@ -1,5 +1,9 @@
 // src/firebase.js
 import { initializeApp } from 'firebase/app';
+// const { initializeApp } = require('firebase/app');
+// const { getFirestore } = require('firebase/firestore');
+// const { getAuth } = require('firebase/auth');
+// const { getAnalytics } = require('firebase/analytics');
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
@@ -20,5 +24,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const analytics = getAnalytics(app);
+// module.exports = { app, auth, db, analytics };
 
 export { app, auth, db, analytics };
