@@ -1,431 +1,422 @@
+// User.jsx
 import React, { useState } from 'react';
 import axios from 'axios';
-import { db, auth } from '../firebase'; // Import Firestore and Auth from your Firebase config
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { fetchUserClosedConsultations } from '../services/consultationServices'; // Import the function to fetch closed consultations
+import { db, auth } from '../firebase';
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  updateDoc,
+  doc,
+  setDoc,
+  getDoc,
+} from 'firebase/firestore';
+import { fetchUserClosedConsultations } from '../services/consultationServices';
+
+// Import MUI components
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Chip,
+  Autocomplete,
+  Grid,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Alert,
+  AppBar,
+  Toolbar,
+  IconButton,
+} from '@mui/material';
+import {
+  Send as SendIcon,
+  LocalHospital as LocalHospitalIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Menu as MenuIcon,
+} from '@mui/icons-material';
 
 const symptomsList = [
-    'itching', 'skin_rash', 'nodal_skin_eruptions', 'continuous_sneezing', 'shivering',
-    'chills', 'joint_pain', 'stomach_pain', 'acidity', 'ulcers_on_tongue', 'muscle_wasting',
-    'vomiting', 'burning_micturition', 'spotting_urination', 'fatigue', 'weight_gain', 
-    // add more symptoms here
+  'itching', 'skin_rash', 'nodal_skin_eruptions', 'continuous_sneezing', 'shivering',
+  'chills', 'joint_pain', 'stomach_pain', 'acidity', 'ulcers_on_tongue', 'muscle_wasting',
+  'vomiting', 'burning_micturition', 'spotting_urination', 'fatigue', 'weight_gain',
+  // add more symptoms here
 ];
 
 const User = () => {
-    const [selectedSymptoms, setSelectedSymptoms] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filteredSymptoms, setFilteredSymptoms] = useState([]);
-    const [conversations, setConversations] = useState([]);
-    const [consultationResponse, setConsultationResponse] = useState(null);  // For doctor’s response
-    const [closedConsultations, setClosedConsultations] = useState([]); // For closed consultations
-    const [conversationCount, setConversationCount] = useState(1);
-    const [showDoctorOption, setShowDoctorOption] = useState(false);
-    const [showDoctorForm, setShowDoctorForm] = useState(false);
-    const [medicalHistory, setMedicalHistory] = useState('');
+  const [selectedSymptoms, setSelectedSymptoms] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [closedConsultations, setClosedConsultations] = useState([]);
+  const [conversationCount, setConversationCount] = useState(1);
+  const [showDoctorForm, setShowDoctorForm] = useState(false);
+  const [medicalHistory, setMedicalHistory] = useState('');
+  const [showOrderForm, setShowOrderForm] = useState(false);
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [postcode, setPostcode] = useState('');
+  const [selectedConsultationId, setSelectedConsultationId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState('success');
 
-    // Separate function to load closed consultations
-    const loadClosedConsultations = async () => {
-        if (auth.currentUser) {
-            try {
-                const consultations = await fetchUserClosedConsultations(auth.currentUser.uid);
-                console.log("Fetched closed consultations:", consultations);
-                setClosedConsultations(consultations);
-            } catch (error) {
-                console.error("Error fetching closed consultations:", error);
-            }
-        } else {
-            alert("You need to be logged in to load closed consultations.");
+  // Function to load closed consultations
+  const loadClosedConsultations = async () => {
+    if (auth.currentUser) {
+      try {
+        const consultations = await fetchUserClosedConsultations(auth.currentUser.uid);
+        setClosedConsultations(consultations);
+      } catch (error) {
+        console.error("Error fetching closed consultations:", error);
+        setAlertMessage('Failed to load closed consultations.');
+        setAlertSeverity('error');
+      }
+    } else {
+      alert("You need to be logged in to load closed consultations.");
+    }
+  };
+
+  const handleGetPrediction = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post('http://localhost:3000/get_advice', {
+        symptoms: selectedSymptoms,
+      });
+      const advice = response.data.advice;
+
+      setConversations([
+        {
+          id: conversationCount,
+          userSymptoms: selectedSymptoms.join(', '),
+          gptResponse: advice,
+        },
+        ...conversations,
+      ]);
+      setConversationCount(conversationCount + 1);
+      setAlertMessage('Prediction received successfully.');
+      setAlertSeverity('success');
+    } catch (error) {
+      console.error("Error getting prediction:", error);
+      setAlertMessage('Failed to get prediction.');
+      setAlertSeverity('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendToDoctor = () => {
+    setShowDoctorForm(true);
+  };
+
+  const handleSubmitToDoctor = async () => {
+    if (!auth.currentUser) {
+      alert("You need to be logged in to submit a consultation.");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'consultations'), {
+        userId: auth.currentUser.uid,
+        symptoms: selectedSymptoms,
+        medicalHistory: medicalHistory,
+        lastConversation: conversations[0]?.gptResponse || "",
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        orderedMedicine: false,
+      });
+
+      setShowDoctorForm(false);
+      setMedicalHistory('');
+      setAlertMessage('Data sent to the health professional successfully.');
+      setAlertSeverity('success');
+    } catch (error) {
+      console.error("Error sending to doctor:", error);
+      setAlertMessage('Failed to send data to the health professional.');
+      setAlertSeverity('error');
+    }
+  };
+
+  // Function to handle ordering medicine
+  const handleOrderMedicine = async () => {
+    if (!auth.currentUser) {
+      alert("You need to be logged in to order medicine.");
+      return;
+    }
+
+    try {
+      // Generate a random number of days between 2 and 5
+      const numberOfDays = Math.floor(Math.random() * 4) + 2;
+
+      // Update the consultation to indicate medicine has been ordered and include deliveryDays
+      const consultationRef = doc(db, 'consultations', selectedConsultationId);
+      await updateDoc(consultationRef, {
+        orderedMedicine: true,
+        deliveryDays: numberOfDays,
+      });
+
+      // Save the user's address in their profile
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await setDoc(userRef, { street, city, postcode }, { merge: true });
+
+      // Create an order document
+      await addDoc(collection(db, 'orders'), {
+        userId: auth.currentUser.uid,
+        consultationId: selectedConsultationId,
+        medicine: closedConsultations.find(c => c.id === selectedConsultationId)?.medication || 'N/A',
+        numberOfDays: numberOfDays,
+        address: { street, city, postcode },
+        orderedAt: serverTimestamp(),
+      });
+
+      setShowOrderForm(false);
+      setStreet('');
+      setCity('');
+      setPostcode('');
+      // Refresh the consultations to update the UI
+      loadClosedConsultations();
+      setAlertMessage(`Medicine ordered successfully! It will arrive in ${numberOfDays} days.`);
+      setAlertSeverity('success');
+    } catch (error) {
+      console.error("Error ordering medicine:", error);
+      setAlertMessage('Failed to order medicine.');
+      setAlertSeverity('error');
+    }
+  };
+
+  // Function to handle clicking "Yes" to order medicine
+  const handleOrderClick = async (consultation) => {
+    setSelectedConsultationId(consultation.id);
+    setShowOrderForm(true);
+
+    // Clear previous address fields
+    setStreet('');
+    setCity('');
+    setPostcode('');
+
+    // Pre-fill address if available
+    if (auth.currentUser) {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        const docSnapshot = await getDoc(userRef);
+        if (docSnapshot.exists()) {
+          const userData = docSnapshot.data();
+          if (userData.street) setStreet(userData.street);
+          if (userData.city) setCity(userData.city);
+          if (userData.postcode) setPostcode(userData.postcode);
         }
-    };
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    }
+  };
 
-    // Removed useEffect that calls loadClosedConsultations on component mount
-    // Now, loadClosedConsultations will be called when the button is pressed
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      {/* AppBar with title */}
+      <AppBar position="static">
+        <Toolbar>
+          <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }}>
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            HealthGPT
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
-    const handleSearchChange = (event) => {
-        const term = event.target.value;
-        setSearchTerm(term);
+      <Box sx={{ maxWidth: 800, mx: 'auto', p: 2 }}>
+        {alertMessage && (
+          <Alert severity={alertSeverity} onClose={() => setAlertMessage('')} sx={{ mb: 2 }}>
+            {alertMessage}
+          </Alert>
+        )}
 
-        if (term) {
-            setFilteredSymptoms(symptomsList.filter(symptom =>
-                symptom.toLowerCase().includes(term.toLowerCase()) &&
-                !selectedSymptoms.includes(symptom)
-            ));
-        } else {
-            setFilteredSymptoms([]);
-        }
-    };
+        {/* Symptom Selection */}
+        <Autocomplete
+          multiple
+          options={symptomsList}
+          getOptionLabel={(option) => option.replace(/_/g, ' ')}
+          value={selectedSymptoms}
+          onChange={(event, newValue) => {
+            setSelectedSymptoms(newValue);
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              variant="outlined"
+              label="Select Symptoms"
+              placeholder="Type to search..."
+            />
+          )}
+          sx={{ mb: 2 }}
+        />
 
-    const addSymptom = (symptom) => {
-        if (!selectedSymptoms.includes(symptom)) {
-            setSelectedSymptoms([...selectedSymptoms, symptom]);
-            if (selectedSymptoms.length + 1 >= 3) {
-                setShowDoctorOption(true);
-            }
-        }
-        setSearchTerm('');
-        setFilteredSymptoms([]);
-    };
+        {/* Submit Button */}
+        <Button
+          variant="contained"
+          color="primary"
+          endIcon={<SendIcon />}
+          onClick={handleGetPrediction}
+          disabled={selectedSymptoms.length === 0 || loading}
+          fullWidth
+          sx={{ mb: 2 }}
+        >
+          {loading ? <CircularProgress size={24} color="inherit" /> : 'Submit'}
+        </Button>
 
-    const removeSymptom = (symptom) => {
-        const updatedSymptoms = selectedSymptoms.filter(s => s !== symptom);
-        setSelectedSymptoms(updatedSymptoms);
-        if (updatedSymptoms.length < 3) {
-            setShowDoctorOption(false);
-        }
-    };
-
-    const handleGetPrediction = async () => {
-        try {
-            const response = await axios.post('http://localhost:3000/get_advice', {
-                symptoms: selectedSymptoms,
-            });
-            const advice = response.data.advice;
-
-            setConversations([
-                {
-                    id: conversationCount,
-                    userSymptoms: selectedSymptoms.join(', '),
-                    gptResponse: advice,
-                },
-                ...conversations,
-            ]);
-            setConversationCount(conversationCount + 1);
-
-        } catch (error) {
-            console.error("Error getting prediction:", error);
-        }
-    };
-
-    const handleSendToDoctor = () => {
-        setShowDoctorForm(true);
-    };
-
-    const handleSubmitToDoctor = async () => {
-        if (!auth.currentUser) {
-            alert("You need to be logged in to submit a consultation.");
-            return;
-        }
-    
-        try {
-            // Add the consultation data to Firestore directly
-            await addDoc(collection(db, 'consultations'), {
-                userId: auth.currentUser.uid,
-                symptoms: selectedSymptoms,
-                medicalHistory: medicalHistory,
-                lastConversation: conversations[0]?.gptResponse || "",
-                status: 'pending',  // Set initial status to 'pending' for doctor's review
-                createdAt: serverTimestamp(),
-            });
-    
-            alert('Data sent to the health professional successfully.');
-            setShowDoctorForm(false);
-            setMedicalHistory('');
-        } catch (error) {
-            console.error("Error sending to doctor:", error);
-            alert("Failed to send data to the health professional.");
-        }
-    };
-
-    return (
-        <div style={styles.container}>
-            <h2 style={styles.title}>Symptom Checker</h2>
-
-            {/* Search and Submit Section */}
-            <div style={styles.searchContainer}>
-                <input
-                    type="text"
-                    placeholder="Search symptoms..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    style={styles.searchInput}
-                />
-                <button onClick={handleGetPrediction} style={styles.submitButton}>Submit</button>
-            </div>
-
-            {/* Display Filtered Symptoms for Selection */}
-            {filteredSymptoms.length > 0 && (
-                <div style={styles.filteredSymptomsContainer}>
-                    {filteredSymptoms.map((symptom, index) => (
-                        <div
-                            key={index}
-                            onClick={() => addSymptom(symptom)}
-                            style={styles.filteredSymptom}
-                        >
-                            {symptom.replace(/_/g, ' ')}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Selected Symptoms Display */}
-            <div style={styles.chipContainer}>
-                {selectedSymptoms.map((symptom, index) => (
-                    <div key={index} style={styles.chip}>
-                        <span style={styles.chipText}>{symptom.replace(/_/g, ' ')}</span>
-                        <button onClick={() => removeSymptom(symptom)} style={styles.chipCloseButton}>×</button>
-                    </div>
-                ))}
-            </div>
-
-            {/* Display Conversations in Reverse Order */}
-            <div>
-                <h3 style={styles.conversationTitle}>Conversation:</h3>
-                {conversations.map((conv) => (
-                    <div key={conv.id} style={styles.conversationContainer}>
-                        <p style={styles.conversationEntry}>
-                            <strong>Conversation {conv.id} - User:</strong> Symptoms: {conv.userSymptoms}
-                        </p>
-                        <p style={styles.conversationEntry}>
-                            <strong>Conversation {conv.id} - ChatGPT:</strong> {conv.gptResponse}
-                        </p>
-                        {showDoctorOption && conv.id === conversationCount - 1 && (
-                            <p style={styles.conversationEntry}>
-                                Would you like us to send our conversation and your symptoms to a doctor?&nbsp;
-                                <button onClick={handleSendToDoctor} style={styles.sendButton}>Yes</button>
-                            </p>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            {/* Doctor Form Modal */}
-            {showDoctorForm && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContainer}>
-                        <button onClick={() => setShowDoctorForm(false)} style={styles.closeButton}>×</button>
-                        <h3 style={styles.modalHeader}>Send to Doctor</h3>
-                        <div style={styles.modalContent}>
-                            <p><strong>Symptoms:</strong> {conversations[0]?.userSymptoms}</p>
-                            <p><strong>Advice:</strong> {conversations[0]?.gptResponse}</p>
-                        </div>
-                        <textarea
-                            value={medicalHistory}
-                            onChange={(e) => setMedicalHistory(e.target.value)}
-                            placeholder="Enter any relevant medical history..."
-                            style={styles.textArea}
-                        />
-                        <button onClick={handleSubmitToDoctor} style={styles.submitButton}>Submit to Doctor</button>
-                    </div>
-                </div>
-            )}
-
-            {/* Button to Load Closed Consultations */}
-            <div style={styles.loadConsultationsContainer}>
-                <button onClick={loadClosedConsultations} style={styles.loadButton}>Load Closed Consultations</button>
-            </div>
-
-            {/* Display Closed Consultations if Available */}
-            <div style={styles.closedConsultationsContainer}>
-                <h3 style={styles.consultationTitle}>Closed Consultations</h3>
-                {closedConsultations.length > 0 ? (
-                    closedConsultations.map((consultation) => (
-                        <div key={consultation.id} style={styles.consultationItem}>
-                            <p><strong>Symptoms:</strong> {consultation.symptoms.join(', ')}</p>
-                            <p><strong>Diagnosis:</strong> {consultation.disease || 'N/A'}</p>
-                            <p><strong>Medication:</strong> {consultation.medication || 'N/A'}</p>
-                            <p><strong>Doctor’s Notes:</strong> {consultation.response || 'N/A'}</p>
-                        </div>
-                    ))
-                ) : (
-                    <p>No closed consultations available.</p>
+        {/* Conversations */}
+        {conversations.length > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" gutterBottom>
+              Conversations
+            </Typography>
+            {conversations.map((conv) => (
+              <Paper key={conv.id} sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  <strong>Symptoms:</strong> {conv.userSymptoms}
+                </Typography>
+                <Typography variant="body1" gutterBottom>
+                  <strong>Advice:</strong> {conv.gptResponse}
+                </Typography>
+                {selectedSymptoms.length >= 3 && conv.id === conversationCount - 1 && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<LocalHospitalIcon />}
+                    onClick={handleSendToDoctor}
+                    sx={{ mt: 1 }}
+                  >
+                    Send to Doctor
+                  </Button>
                 )}
-            </div>
-        </div>
-    );
-};
+              </Paper>
+            ))}
+          </Box>
+        )}
 
-const styles = {
-    container: {
-        maxWidth: '600px',
-        margin: '0 auto',
-        padding: '20px',
-        fontFamily: 'Arial, sans-serif',
-        backgroundColor: '#f9f9fb',
-        borderRadius: '10px',
-        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-    },
-    title: {
-        textAlign: 'center',
-        color: '#333',
-    },
-    searchContainer: {
-        display: 'flex',
-        alignItems: 'center',
-        marginBottom: '20px',
-    },
-    searchInput: {
-        flex: 1,
-        padding: '10px',
-        borderRadius: '20px',
-        border: '1px solid #ddd',
-        outline: 'none',
-        fontSize: '16px',
-    },
-    submitButton: {
-        marginLeft: '10px',
-        padding: '10px 20px',
-        borderRadius: '20px',
-        border: 'none',
-        backgroundColor: '#4a90e2',
-        color: '#fff',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        transition: 'background-color 0.3s',
-    },
-    filteredSymptomsContainer: {
-        border: '1px solid #ddd',
-        borderRadius: '10px',
-        padding: '10px',
-        marginBottom: '20px',
-        backgroundColor: '#fff',
-    },
-    filteredSymptom: {
-        padding: '5px 0',
-        cursor: 'pointer',
-        fontSize: '16px',
-        color: '#333',
-        borderBottom: '1px solid #ddd',
-    },
-    chipContainer: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '10px',
-        marginBottom: '20px',
-    },
-    chip: {
-        display: 'flex',
-        alignItems: 'center',
-        backgroundColor: '#e0e7ff',
-        borderRadius: '16px',
-        padding: '5px 10px',
-        border: '1px solid #c4c9f0',
-    },
-    chipText: {
-        marginRight: '5px',
-        color: '#4a4a9a',
-    },
-    chipCloseButton: {
-        backgroundColor: 'transparent',
-        border: 'none',
-        color: '#4a4a9a',
-        fontSize: '16px',
-        cursor: 'pointer',
-    },
-    conversationContainer: {
-        padding: '10px',
-        backgroundColor: '#fff',
-        borderRadius: '10px',
-        border: '1px solid #ddd',
-        color: '#333',  
-        marginTop: '10px',
-    },
-    conversationTitle: {
-        color: '#4a90e2',
-        fontSize: '18px',
-        marginBottom: '10px',
-    },
-    conversationEntry: {
-        marginBottom: '10px',
-        fontSize: '16px',
-        lineHeight: '1.5',
-        color: '#333',
-    },
-    sendButton: {
-        padding: '8px 16px',
-        borderRadius: '10px',
-        border: 'none',
-        backgroundColor: '#4caf50',
-        color: '#fff',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        transition: 'background-color 0.3s',
-    },
-    modalOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalContainer: {
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '10px',
-        width: '80%',
-        maxWidth: '500px',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-        position: 'relative',
-    },
-    closeButton: {
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        backgroundColor: 'transparent',
-        border: 'none',
-        fontSize: '20px',
-        cursor: 'pointer',
-    },
-    modalHeader: {
-        fontSize: '20px',
-        fontWeight: 'bold',
-        marginBottom: '10px',
-        color: '#333',
-    },
-    modalContent: {
-        marginBottom: '10px',
-        color: '#333',
-        overflowY: 'auto',
-        maxHeight: '150px',
-        padding: '10px',
-        backgroundColor: '#f5f5f5',
-        borderRadius: '8px',
-    },
-    textArea: {
-        width: '100%',
-        height: '100px',
-        padding: '10px',
-        marginBottom: '10px',
-        borderRadius: '5px',
-        border: '1px solid #ddd',
-        fontSize: '14px',
-    },
-    loadConsultationsContainer: {
-        marginTop: '20px',
-        textAlign: 'center',
-    },
-    loadButton: {
-        padding: '10px 20px',
-        borderRadius: '20px',
-        border: 'none',
-        backgroundColor: '#4a90e2',
-        color: '#fff',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        transition: 'background-color 0.3s',
-    },
-    closedConsultationsContainer: {
-        marginTop: '20px',
-        padding: '10px',
-        backgroundColor: '#f9f9f9',
-        borderRadius: '8px',
-        border: '1px solid #ddd',
-    },
-    consultationItem: {
-        padding: '10px',
-        borderBottom: '1px solid #ddd',
-    },
-    consultationTitle: {
-        fontSize: '18px',
-        fontWeight: 'bold',
-        marginBottom: '10px',
-        color: '#333',
-    },
+        {/* Load Closed Consultations Button */}
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={loadClosedConsultations}
+          fullWidth
+          sx={{ mb: 2 }}
+        >
+          Load Closed Consultations
+        </Button>
+
+        {/* Closed Consultations */}
+        {closedConsultations.length > 0 && (
+          <Box>
+            <Typography variant="h5" gutterBottom>
+              Closed Consultations
+            </Typography>
+            {closedConsultations.map((consultation) => (
+              <Paper key={consultation.id} sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1">
+                  <strong>Symptoms:</strong> {consultation.symptoms.join(', ')}
+                </Typography>
+                <Typography variant="body1">
+                  <strong>Diagnosis:</strong> {consultation.disease || 'N/A'}
+                </Typography>
+                <Typography variant="body1">
+                  <strong>Medication:</strong> {consultation.medication || 'N/A'}
+                </Typography>
+                <Typography variant="body1">
+                  <strong>Doctor’s Notes:</strong> {consultation.response || 'N/A'}
+                </Typography>
+
+                {!consultation.orderedMedicine && consultation.medication && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<ShoppingCartIcon />}
+                    onClick={() => handleOrderClick(consultation)}
+                    sx={{ mt: 1 }}
+                  >
+                    Order Medicine
+                  </Button>
+                )}
+                {consultation.orderedMedicine && (
+                  <Alert severity="success" sx={{ mt: 2 }}>
+                    Medicine will arrive in {consultation.deliveryDays} days.
+                  </Alert>
+                )}
+              </Paper>
+            ))}
+          </Box>
+        )}
+
+        {/* Doctor Form Dialog */}
+        <Dialog open={showDoctorForm} onClose={() => setShowDoctorForm(false)}>
+          <DialogTitle>Send to Doctor</DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" gutterBottom>
+              <strong>Symptoms:</strong> {conversations[0]?.userSymptoms}
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <strong>Advice:</strong> {conversations[0]?.gptResponse}
+            </Typography>
+            <TextField
+              label="Medical History"
+              multiline
+              rows={4}
+              value={medicalHistory}
+              onChange={(e) => setMedicalHistory(e.target.value)}
+              variant="outlined"
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowDoctorForm(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleSubmitToDoctor}>
+              Submit
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Order Medicine Dialog */}
+        <Dialog open={showOrderForm} onClose={() => setShowOrderForm(false)}>
+          <DialogTitle>Order Medicine</DialogTitle>
+          <DialogContent>
+            <TextField
+              label="Street"
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              variant="outlined"
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="City"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              variant="outlined"
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="Postcode"
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value)}
+              variant="outlined"
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowOrderForm(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleOrderMedicine}>
+              Submit Order
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </Box>
+  );
 };
 
 export default User;
